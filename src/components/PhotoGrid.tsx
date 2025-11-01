@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import PhotoCard from './PhotoCard';
 import LoadingSpinner from './LoadingSpinner';
 import type { Photo } from '../types/Photo';
@@ -7,9 +7,9 @@ import { fetchPhotos } from '../services/photoService';
 const PhotoGrid: React.FC = () => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pageRef = useRef(1);
 
   const loadPhotos = useCallback(async (pageNum: number, isInitial: boolean = false) => {
     if (loading) return;
@@ -20,26 +20,17 @@ const PhotoGrid: React.FC = () => {
     try {
       const newPhotos = await fetchPhotos(pageNum, 20);
       
-      if (newPhotos.length === 0) {
+      // Lorem Picsum API has over 1000+ photos, so we check for actual end
+      // The API will return less than requested limit when we reach the end
+      if (newPhotos.length < 20) {
         setHasMore(false);
+      }
+      
+      if (newPhotos.length > 0) {
+        setPhotos(prev => isInitial ? newPhotos : [...prev, ...newPhotos]);
       } else {
-        setPhotos(prev => {
-          if (isInitial) {
-            return newPhotos;
-          }
-          
-          // Filter out photos that already exist to prevent duplicates
-          const existingIds = new Set(prev.map(photo => photo.id));
-          const uniqueNewPhotos = newPhotos.filter(photo => !existingIds.has(photo.id));
-          
-          // If no new unique photos, we might have reached the end
-          if (uniqueNewPhotos.length === 0) {
-            setHasMore(false);
-            return prev;
-          }
-          
-          return [...prev, ...uniqueNewPhotos];
-        });
+        // Only set hasMore to false if we get no photos at all
+        setHasMore(false);
       }
     } catch (err) {
       setError('Failed to load photos. Please try again.');
@@ -63,15 +54,14 @@ const PhotoGrid: React.FC = () => {
         && hasMore
         && !loading
       ) {
-        const nextPage = page + 1;
-        setPage(nextPage);
-        loadPhotos(nextPage);
+        pageRef.current += 1;
+        loadPhotos(pageRef.current);
       }
     };
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasMore, loading, page, loadPhotos]);
+  }, [hasMore, loading, loadPhotos]);
 
   if (error && photos.length === 0) {
     return (
@@ -80,7 +70,7 @@ const PhotoGrid: React.FC = () => {
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={() => {
-              setPage(1);
+              pageRef.current = 1;
               setError(null);
               setHasMore(true);
               loadPhotos(1, true);
