@@ -1,9 +1,9 @@
 services:
   - type: web
     name: photo-gallery
-    env: static
+    env: node
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    startCommand: npm start
     routes:
       - type: rewrite
         source: /*
