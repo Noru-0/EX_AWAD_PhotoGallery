@@ -1,15 +1,24 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import PhotoCard from './PhotoCard';
 import LoadingSpinner from './LoadingSpinner';
-import type { Photo } from '../types/Photo';
 import { fetchPhotos } from '../services/photoService';
+import { usePhotoGallery } from '../contexts/PhotoGalleryContext';
+import { useScrollRestoration, useScrollCapture } from '../hooks/useScrollRestoration';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 const PhotoGrid: React.FC = () => {
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const pageRef = useRef(1);
+  const {
+    state: { photos, loading, hasMore, error, scrollPosition },
+    setPhotos,
+    addPhotos,
+    setCurrentPage,
+    setHasMore,
+    setScrollPosition,
+    setLoading,
+    setError,
+  } = usePhotoGallery();
+
+  const currentPageRef = useRef(1);
 
   const loadPhotos = useCallback(async (pageNum: number, isInitial: boolean = false) => {
     if (loading) return;
@@ -27,7 +36,13 @@ const PhotoGrid: React.FC = () => {
       }
       
       if (newPhotos.length > 0) {
-        setPhotos(prev => isInitial ? newPhotos : [...prev, ...newPhotos]);
+        if (isInitial) {
+          setPhotos(newPhotos);
+        } else {
+          addPhotos(newPhotos);
+        }
+        currentPageRef.current = pageNum;
+        setCurrentPage(pageNum);
       } else {
         // Only set hasMore to false if we get no photos at all
         setHasMore(false);
@@ -38,30 +53,31 @@ const PhotoGrid: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [loading]);
+  }, [loading, setLoading, setError, setPhotos, addPhotos, setCurrentPage, setHasMore]);
 
-  // Initial load
+  // Initial load - only if no photos exist
   useEffect(() => {
-    loadPhotos(1, true);
-  }, []);
+    if (photos.length === 0) {
+      loadPhotos(1, true);
+    }
+  }, [photos.length, loadPhotos]);
+
+  // Use custom hooks for scroll management
+  useScrollRestoration(photos.length > 0, scrollPosition, [photos.length]);
+  useScrollCapture(setScrollPosition);
 
   // Infinite scroll
-  useEffect(() => {
-    const handleScroll = () => {
-      if (
-        window.innerHeight + document.documentElement.scrollTop
-        >= document.documentElement.offsetHeight - 1000
-        && hasMore
-        && !loading
-      ) {
-        pageRef.current += 1;
-        loadPhotos(pageRef.current);
-      }
-    };
+  const handleLoadMore = useCallback(() => {
+    currentPageRef.current += 1;
+    loadPhotos(currentPageRef.current);
+  }, [loadPhotos]);
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasMore, loading, loadPhotos]);
+  useInfiniteScroll({
+    hasMore,
+    loading,
+    onLoadMore: handleLoadMore,
+    threshold: 1000
+  });
 
   if (error && photos.length === 0) {
     return (
@@ -70,7 +86,7 @@ const PhotoGrid: React.FC = () => {
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={() => {
-              pageRef.current = 1;
+              currentPageRef.current = 1;
               setError(null);
               setHasMore(true);
               loadPhotos(1, true);
