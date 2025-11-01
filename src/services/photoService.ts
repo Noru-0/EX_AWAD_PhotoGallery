@@ -39,3 +39,13 @@ export const getThumbnailUrl = (id: string): string => {
 export const getFullSizeUrl = (id: string, width: number = 800, height: number = 600): string => {
   return getPhotoUrl(id, width, height);
 };
+
+export const getOriginalSizeUrl = (photo: Photo): string => {
+  // Use the photo's original dimensions to get the full resolution image
+  return getPhotoUrl(photo.id, photo.width, photo.height);
+};
+
+export const getOriginalImageUrl = (photo: Photo): string => {
+  // Use download_url which provides the original image
+  return photo.download_url;
+};

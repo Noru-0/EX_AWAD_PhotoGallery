@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import LoadingSpinner from './LoadingSpinner';
 import type { Photo } from '../types/Photo';
-import { fetchPhotoById, getFullSizeUrl } from '../services/photoService';
+import { fetchPhotoById, getOriginalImageUrl } from '../services/photoService';
 
 const PhotoDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +11,8 @@ const PhotoDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(true);
+  const [showOriginalSize, setShowOriginalSize] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     const loadPhoto = async () => {
@@ -77,19 +79,89 @@ const PhotoDetails: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          {/* Image Controls */}
+          <div className="p-4 border-b bg-gray-50">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="text-sm text-gray-600">
+                Original size: {photo.width} × {photo.height} pixels
+              </div>
+              <div className="flex items-center gap-2">
+                {showOriginalSize && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setZoom(Math.max(0.1, zoom - 0.1))}
+                      className="px-2 py-1 text-sm bg-gray-600 text-white rounded font-medium
+                               hover:bg-gray-700 hover:scale-110 hover:shadow-md
+                               active:scale-95 transition-all duration-150 ease-in-out
+                               disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+                      disabled={zoom <= 0.1}
+                    >
+                      −
+                    </button>
+                    <span className="text-sm min-w-12 text-center font-semibold text-gray-700">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                      onClick={() => setZoom(Math.min(3, zoom + 0.1))}
+                      className="px-2 py-1 text-sm bg-gray-600 text-white rounded font-medium
+                               hover:bg-gray-700 hover:scale-110 hover:shadow-md
+                               active:scale-95 transition-all duration-150 ease-in-out
+                               disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+                      disabled={zoom >= 3}
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={() => setZoom(1)}
+                      className="px-2 py-1 text-sm bg-gray-500 text-white rounded font-medium
+                               hover:bg-gray-600 hover:scale-105 hover:shadow-md
+                               active:scale-95 transition-all duration-150 ease-in-out"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setShowOriginalSize(!showOriginalSize);
+                    setZoom(1);
+                  }}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded font-medium shadow-md 
+                           hover:bg-blue-700 hover:shadow-lg hover:scale-105 hover:-translate-y-0.5
+                           active:scale-95 active:translate-y-0
+                           transition-all duration-200 ease-in-out
+                           border border-blue-700 hover:border-blue-800
+                           cursor-pointer"
+                >
+                  {showOriginalSize ? 'Fit to Screen' : 'Original Size'}
+                </button>
+              </div>
+            </div>
+          </div>
+          
           {/* Image */}
-          <div className="relative bg-gray-200">
+          <div className={`relative bg-gray-100 ${showOriginalSize ? 'overflow-auto max-h-screen' : 'flex justify-center items-center min-h-96'}`}>
             {imageLoading && (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center z-10">
                 <LoadingSpinner />
               </div>
             )}
             <img
-              src={getFullSizeUrl(photo.id, 800, 600)}
+              src={getOriginalImageUrl(photo)}
               alt={`Photo by ${photo.author}`}
-              className={`w-full h-auto max-h-96 object-contain transition-opacity duration-300 ${
+              className={`transition-all duration-300 ${
                 imageLoading ? 'opacity-0' : 'opacity-100'
+              } ${
+                showOriginalSize 
+                  ? 'block max-w-none cursor-move' 
+                  : 'max-w-full max-h-96 object-contain'
               }`}
+              style={showOriginalSize ? {
+                width: `${photo.width}px`,
+                height: `${photo.height}px`,
+                transform: `scale(${zoom})`,
+                transformOrigin: 'top left'
+              } : undefined}
               onLoad={() => setImageLoading(false)}
               onError={() => setImageLoading(false)}
             />
